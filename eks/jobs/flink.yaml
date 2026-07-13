@@ -1,0 +1,64 @@
+# Flink DataStream → Iceberg (Glue + S3) — rendered by 04_run_benchmark.sh.
+# Placeholders __REGISTRY__ __TAG__ __PARALLELISM__ __MODE__ __WRITE__ __PART__
+# __FMT__ __UPSERT__ __CKPT__ are sed-substituted at run time.
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: sfi-flink
+  namespace: bench
+spec:
+  image: __REGISTRY__/sfi-bench/flink:__TAG__
+  flinkVersion: v2_0
+  serviceAccount: sfi-engine            # IRSA → sfi-iceberg-access
+  flinkConfiguration:
+    # KEEP-UP ENVELOPE (matches Spark): 2 TaskManagers × 7c/14GB × 6 slots = 14 cores /
+    # 28 GB / 12 slots, parallelism 12, 12 Kafka partitions. Sized so Flink's slowest
+    # cell (upsert DV, ~11k rows/core/s) clears 100k input with headroom → lag→0.
+    # 7 cores/TM fits one m5.2xlarge (7.9 allocatable); 2 TMs = 2 worker nodes.
+    taskmanager.numberOfTaskSlots: "6"
+    state.backend: rocksdb
+    state.checkpoints.dir: s3://__BUCKET__/checkpoints/flink
+    execution.checkpointing.interval: "60000"      # 1-minute commits (same as Spark)
+    execution.checkpointing.mode: EXACTLY_ONCE
+    # warehouse bucket is us-east-1 — point the flink-s3 checkpoint fs at it
+    s3.endpoint.region: us-east-1
+  jobManager:                                       # coordinator (≙ Spark driver)
+    resource: { memory: "2048m", cpu: 1 }
+  taskManager:                                       # 2 × 7 cores / 14 GB = 14c/28GB
+    resource: { memory: "14336m", cpu: 7 }
+    replicas: 2
+  job:
+    jarURI: local:///opt/flink/usrlib/app.jar
+    entryClass: com.benchmark.IcebergIngestJob
+    parallelism: 12
+    upgradeMode: stateless
+    args:
+      - "--distribution-mode"
+      - "__MODE__"
+      - "--upsert"
+      - "__UPSERT__"
+      - "--partitioning"
+      - "__PART__"
+      - "--format-version"
+      - "__FMT__"
+      - "--warehouse"
+      - "s3://__BUCKET__/"
+      - "--database"
+      - "streaming"
+      - "--parallelism"
+      - "__PARALLELISM__"
+  # Glue catalog + real Kafka bootstrap via env (job reads CATALOG_TYPE=glue).
+  podTemplate:
+    spec:
+      containers:
+        - name: flink-main-container
+          env:
+            - { name: CATALOG_TYPE, value: "glue" }
+            - { name: KAFKA_BOOTSTRAP, value: "sfi-bench-kafka-bootstrap.kafka:9092" }
+            - { name: RECREATE_TABLE, value: "1" }
+            - { name: STARTING_OFFSETS, value: "latest" }   # process the LIVE stream from ~0 backlog (fair, symmetric with Spark)
+            - { name: BUCKETS, value: "__BUCKETS__" }        # concurrent write streams (throughput lever)
+            # S3 + Glue warehouse in us-east-1 (job reads AWS_REGION → Glue+S3 region)
+            - { name: AWS_REGION, value: "us-east-1" }
+            - { name: AWS_STS_REGIONAL_ENDPOINTS, value: "regional" }
+            - { name: CHECKPOINT_INTERVAL_MS, value: "60000" }

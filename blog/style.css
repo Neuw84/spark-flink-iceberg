@@ -1,0 +1,46 @@
+/* Reading style for the Spark-vs-Flink Iceberg post — clean, Medium-like. */
+:root {
+  --ink: #242422; --muted: #6b6b66; --rule: #e6e5e1;
+  --surface: #ffffff; --code-bg: #f6f5f2; --link: #2a78d6; --accent: #eb6834;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: Charter, Georgia, "Times New Roman", serif;
+  color: var(--ink); background: var(--surface);
+  max-width: 720px; margin: 0 auto; padding: 56px 24px 96px;
+  line-height: 1.7; font-size: 20px; -webkit-font-smoothing: antialiased;
+}
+h1 { font-size: 2.15em; line-height: 1.18; letter-spacing: -0.02em; margin: 0 0 .5em; }
+h2 { font-size: 1.5em; margin: 2em 0 .5em; letter-spacing: -0.01em; }
+h3 { font-size: 1.2em; margin: 1.6em 0 .4em; }
+h1, h2, h3 { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-weight: 700; }
+p, li { color: var(--ink); }
+a { color: var(--link); text-decoration: none; border-bottom: 1px solid rgba(42,120,214,.3); }
+a:hover { border-bottom-color: var(--link); }
+em { color: var(--muted); }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 2.4em 0; }
+blockquote {
+  margin: 1.4em 0; padding: .2em 0 .2em 1.1em;
+  border-left: 3px solid var(--accent); color: #45443f; font-style: normal;
+}
+blockquote p { margin: .4em 0; }
+img { max-width: 100%; height: auto; display: block; margin: 1.6em auto 0.4em;
+      border: 1px solid var(--rule); border-radius: 6px; }
+figure { margin: 2em 0; }
+code {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: .82em; background: var(--code-bg); padding: .12em .38em; border-radius: 4px;
+}
+pre {
+  background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 16px 18px; overflow-x: auto; font-size: .78em; line-height: 1.55;
+}
+pre code { background: none; padding: 0; font-size: 1em; }
+table {
+  border-collapse: collapse; width: 100%; margin: 1.6em 0; font-size: .72em;
+  font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+th, td { border: 1px solid var(--rule); padding: 8px 11px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(even) td { background: #fbfaf8; }
+strong { font-weight: 700; }

@@ -1,0 +1,8 @@
+=== EKS 30-min, 14c/28GB, 100k — keep-up by post-commit lag-floor trend ===
+CELL                 commit/s floor_slope       verdict files  avgMB  CPU  mem_MB
+---------------------------------------------------------------------------------
+Flink append           98,765        -134      KEEPS UP   792    9.2  5.6  16,757
+Spark append           99,479         +24      KEEPS UP   792    8.6  3.4  19,718
+Flink upsert (DV)      97,795         +98      KEEPS UP   792    9.6  6.0  16,980
+Spark upsert (MoR)     37,373     +62,469  FALLS BEHIND   768    3.8  3.5  30,983
+Spark upsert (CoW)      2,657     +98,986  FALLS BEHIND    24    9.1  4.5  29,867

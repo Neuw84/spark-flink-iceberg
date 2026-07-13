@@ -1,0 +1,40 @@
+# Producer fleet — rendered by 04_run_benchmark.sh.
+# __PRODPODS__ pods × __RATE__ rps each. Sized so aggregate exceeds a single
+# host's ceiling: the workload is deliberately big enough that the SOURCES push
+# hard and we can see whether the engine keeps its Kafka lag flat under real load.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sfi-producer
+  namespace: bench
+spec:
+  parallelism: __PRODPODS__
+  completions: __PRODPODS__
+  backoffLimit: 0
+  template:
+    metadata:
+      labels: { app: sfi-producer }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: producer
+          image: __REGISTRY__/sfi-bench/load:__TAG__
+          args:
+            - "--bootstrap"
+            - "sfi-bench-kafka-bootstrap.kafka:9092"
+            - "--topic"
+            - "events"
+            - "--rate"
+            - "__RATE__"
+            - "--seconds"
+            - "__PRODUCER_SECONDS__"
+            - "--payload-bytes"
+            - "500"
+            - "--dup-rate"
+            - "__DUP__"
+          resources:
+            # LOW cpu REQUEST (scheduling only) so 10 producers don't crowd the
+            # 7-core engine executor/TM off every node. The limit stays high — the
+            # producers still burst to full throughput; only the scheduler reservation shrinks.
+            requests: { cpu: "100m", memory: 512Mi }
+            limits:   { cpu: "2", memory: 1Gi }

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.benchmark</groupId>
+  <artifactId>flink-iceberg-bench</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <flink.version>2.2.0</flink.version>
+    <flink.minor>2.0</flink.minor>
+    <iceberg.version>1.11.0</iceberg.version>
+  </properties>
+
+  <dependencies>
+    <!-- provided: present in the Flink image -->
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-streaming-java</artifactId>
+      <version>${flink.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-clients</artifactId>
+      <version>${flink.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-connector-kafka</artifactId>
+      <version>5.0.0-2.2</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.iceberg</groupId>
+      <artifactId>iceberg-flink-runtime-${flink.minor}</artifactId>
+      <version>${iceberg.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- RowData / GenericRowData / StringData live here -->
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-table-common</artifactId>
+      <version>${flink.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!--
+      Hadoop must be bundled into the fat jar: Flink 2.x images no longer ship
+      it, and Iceberg's CatalogLoader references org.apache.hadoop.conf.Configuration.
+      This mirrors the AWS Managed Flink sample, which pulls hadoop-mapreduce-client-core
+      at compile scope (it drags in hadoop-common transitively).
+    -->
+    <!--
+      Hadoop (org.apache.hadoop.conf.Configuration, needed by Iceberg's
+      CatalogLoader) is provided by the cluster image via flink-shaded-hadoop-2-uber
+      on /opt/flink/lib (see flink/Dockerfile). We control the image, so we put it
+      on the cluster classpath rather than bloating the job jar. The AWS Managed
+      Flink sample bundles it instead only because Managed Flink forbids editing lib/.
+    -->
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-common</artifactId>
+      <version>3.4.1</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- shaded into the fat jar -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.18.2</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>flink-iceberg-bench</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <!-- Strip signature files from bundled (signed) jars, otherwise
+                   the JVM rejects the uber jar: "Invalid signature file digest". -->
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                    <exclude>module-info.class</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>com.benchmark.IcebergIngestJob</mainClass>
+                </transformer>
+                <!-- merge service files so Hadoop FileSystem impls resolve -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

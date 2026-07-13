@@ -1,0 +1,8 @@
+=== LOCAL 5-min, 7c/14GB, 50k — keep-up by post-commit lag-floor trend ===
+CELL                 commit/s floor_slope       verdict files  avgMB  CPU  mem_MB
+---------------------------------------------------------------------------------
+Flink append           43,636        -899      KEEPS UP   144    4.7  1.4   9,037
+Spark append           43,354        -751      KEEPS UP   192    3.8  6.1   5,092
+Flink upsert (DV)      48,235        +156      KEEPS UP   144    4.5  1.6   9,031
+Spark upsert (MoR)     20,434     +27,666  FALLS BEHIND   168    1.7  7.8   5,301
+Spark upsert (CoW)     11,313     +37,313  FALLS BEHIND    24    7.2  6.0  10,250

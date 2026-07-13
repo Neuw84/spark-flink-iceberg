@@ -1,0 +1,7 @@
+100k input, 14c/28GB per engine, par 12, 12 partitions, 24 buckets, 60s commits, 30-min steady state
+CELL               commit/s  lag_slope         verdict files avgMB  CPU  mem_MB
+Flink append         98,765       +105        KEEPS UP   792   9.2  5.6  16,757
+Spark append         99,479       +420        KEEPS UP   792   8.6  3.6  19,718
+Flink upsert(DV)     97,795       +148        KEEPS UP   792   9.6  6.0  16,980
+Spark upsert(MoR)    37,373    +62,630    FALLS BEHIND   768   3.8  3.6  30,983
+Spark upsert(CoW)     2,657    +98,673    FALLS BEHIND    24   9.1  4.6  29,867

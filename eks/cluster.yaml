@@ -1,0 +1,63 @@
+# eksctl manifest — EKS cluster for the Spark-vs-Flink → Iceberg benchmark.
+# Deployed fully in us-east-1 (cluster + Kafka + S3 warehouse + Glue co-located):
+# this makes the IRSA/pod-identity webhook inject AWS_REGION=us-east-1, matching
+# the warehouse bucket — the configuration that avoids Iceberg S3FileIO's
+# cross-region 301 under IRSA. Security baseline: KMS secrets encryption, OIDC,
+# IMDSv2, private nodes, control-plane logging.
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: sfi-iceberg-bench
+  region: us-east-1
+  version: "1.31"
+  tags:
+    project: spark-flink-iceberg
+    lifecycle: ephemeral-benchmark
+    teardown: "yes"
+
+iam:
+  withOIDC: true
+
+# @secure_recommendation: KMS envelope encryption for Kubernetes secrets (ARCC eks baseline).
+# Uses the dedicated us-east-1 CMK created by 01_create_cluster.sh (alias/sfi-iceberg-bench-e1).
+secretsEncryption:
+  keyARN: "__KMS_KEY_ARN__"
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+
+# Standalone: eksctl creates a dedicated VPC across 2 AZs with a SINGLE NAT gateway
+# (one EIP instead of one-per-AZ) to keep the footprint small. This makes the repo
+# reproducible from scratch — no pre-existing network required.
+#
+# If your account is at its VPC/EIP limit (us-east-1 defaults to 5 VPCs), either
+# raise the quota, or reuse an existing VPC by replacing this block with:
+#   vpc:
+#     id: vpc-xxxx
+#     subnets:
+#       private: { us-east-1a: {id: subnet-aaa}, us-east-1b: {id: subnet-bbb} }
+#       public:  { us-east-1a: {id: subnet-ccc}, us-east-1b: {id: subnet-ddd} }
+vpc:
+  nat:
+    gateway: Single
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+
+availabilityZones: ["us-east-1a", "us-east-1b"]
+
+managedNodeGroups:
+  - name: bench
+    instanceType: m5.2xlarge
+    desiredCapacity: 6
+    minSize: 6
+    maxSize: 6
+    privateNetworking: true
+    volumeSize: 200
+    volumeType: gp3
+    disableIMDSv1: true
+    labels: { role: bench }
+    tags:
+      lifecycle: ephemeral-benchmark

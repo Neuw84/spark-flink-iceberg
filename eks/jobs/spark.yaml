@@ -1,0 +1,76 @@
+# Spark Structured Streaming → Iceberg (Glue + S3) — rendered by 04_run_benchmark.sh.
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: sfi-spark
+  namespace: bench
+spec:
+  type: Scala
+  mode: cluster
+  image: __REGISTRY__/sfi-bench/spark:__TAG__
+  mainClass: com.benchmark.IcebergIngestJob
+  mainApplicationFile: local:///opt/spark/jars/app.jar
+  sparkVersion: 4.1.2
+  arguments:
+    - "--distribution-mode"
+    - "__MODE__"
+    - "--upsert"
+    - "__UPSERT__"
+    - "--partitioning"
+    - "__PART__"
+    - "--format-version"
+    - "__FMT__"
+    - "--merge-mode"
+    - "__MERGE_MODE__"                       # merge-on-read | copy-on-write (upsert only)
+    - "--trigger"
+    - "60"                                  # 1-minute micro-batch = 1-minute commits
+  sparkConf:
+    spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+    spark.sql.catalog.demo: org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.demo.type: glue
+    spark.sql.catalog.demo.warehouse: s3://__BUCKET__/
+    spark.sql.catalog.demo.io-impl: org.apache.iceberg.aws.s3.S3FileIO
+    # THE fix: these now actually reach Iceberg's GlueCatalog because the job no
+    # longer re-sets catalog config in code (CONFIG_FROM_MANIFEST=1) — previously
+    # the operator-managed SparkSession dropped the builder .config() calls and
+    # GlueCatalog initialized with empty props → default region → 301.
+    spark.sql.catalog.demo.client.region: us-east-1
+    spark.sql.catalog.demo.s3.region: us-east-1
+    spark.sql.catalog.demo.glue.region: us-east-1
+    # Spark streaming checkpoint uses S3A (hadoop-aws) — IRSA web-identity + region.
+    spark.hadoop.fs.s3a.aws.credentials.provider: software.amazon.awssdk.auth.credentials.WebIdentityTokenFileCredentialsProvider
+    spark.hadoop.fs.s3a.endpoint.region: us-east-1
+    # parallelism 8 (= 8 executor cores, = Flink's 8 slots). shuffle partitions
+    # match so neither engine gets a hidden shuffle-width advantage.
+    spark.sql.shuffle.partitions: "12"
+    spark.default.parallelism: "12"
+  # KEEP-UP ENVELOPE (matches Flink): executors do the WORK — 2 × 7c/14GB = 14c/28GB
+  # ≙ Flink's 2 × 7c/14GB TaskManagers. Driver is the coordinator ≙ Flink JobManager
+  # (1c/2GB). parallelism 12 = 12 Kafka partitions (1 core/partition). Identical to
+  # Flink's total so the only variable is the engine.
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: 2048m
+    serviceAccount: sfi-engine
+    env:
+      - { name: CATALOG_TYPE, value: "glue" }
+      - { name: CONFIG_FROM_MANIFEST, value: "1" }
+      - { name: RECREATE_TABLE, value: "1" }
+      - { name: BUCKETS, value: "__BUCKETS__" }        # concurrent write streams (throughput lever, matches Flink)
+      - { name: STARTING_OFFSETS, value: "latest" }   # process the LIVE stream from ~0 backlog (fair vs Flink 'latest'); producers run first so batch 0 has data (avoids Spark 4.1.2 empty-batch NPE)
+      - { name: KAFKA_BOOTSTRAP, value: "sfi-bench-kafka-bootstrap.kafka:9092" }
+      - { name: CHECKPOINT_BASE, value: "s3a://__BUCKET__/checkpoints/spark" }
+      - { name: AWS_REGION, value: "us-east-1" }
+      - { name: AWS_DEFAULT_REGION, value: "us-east-1" }
+      - { name: AWS_STS_REGIONAL_ENDPOINTS, value: "regional" }
+  executor:
+    cores: 7                          # 7 cores/executor (matches one Flink TM)
+    instances: 2                      # 2 executors = 14c/28GB total (matches Flink's 2 TMs)
+    memory: 14336m                    # 14 GB each
+    env:
+      - { name: CATALOG_TYPE, value: "glue" }
+      - { name: CONFIG_FROM_MANIFEST, value: "1" }
+      - { name: AWS_REGION, value: "us-east-1" }
+      - { name: AWS_DEFAULT_REGION, value: "us-east-1" }
+      - { name: AWS_STS_REGIONAL_ENDPOINTS, value: "regional" }
