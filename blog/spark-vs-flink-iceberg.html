@@ -426,80 +426,6 @@ tells the same story on a laptop and on a six-node cluster. That&#39;s the
 point of running both — you can reproduce the headline on your machine
 before spending a cent on EKS.</p>
 <hr />
-<h2 id="the-connector-feature-comparison">The connector feature
-comparison</h2>
-<p>Speed aside, the connectors differ in what they can <em>do</em>.
-Versions: Spark 4.1.2 + iceberg-spark-runtime 1.11.0, Flink 2.2.0 +
-iceberg-flink-runtime 1.11.0.</p>
-<table>
-<thead>
-<tr>
-<th>Capability</th>
-<th>Spark (Structured Streaming)</th>
-<th>Flink (DataStream / SQL)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Write distribution</strong></td>
-<td><code>none</code>/<code>hash</code>/<code>range</code> via table
-prop; <code>fanout-enabled</code></td>
-<td>same, plus <code>.distributionMode()</code> on the sink builder</td>
-</tr>
-<tr>
-<td><strong>Streaming append</strong></td>
-<td><code>writeStream.format(&quot;iceberg&quot;).toTable()</code></td>
-<td><code>IcebergSink</code> (SinkV2) / <code>INSERT INTO</code></td>
-</tr>
-<tr>
-<td><strong>Upsert / CDC</strong></td>
-<td><code>MERGE INTO</code> in <code>foreachBatch</code> (CoW or
-MoR)</td>
-<td>native <code>.upsert(true)</code> +
-<code>equalityFieldColumns</code></td>
-</tr>
-<tr>
-<td><strong>Deletes</strong></td>
-<td>positional (CoW) or MoR</td>
-<td><strong>equality deletes</strong> + <strong>deletion
-vectors</strong> on v3</td>
-</tr>
-<tr>
-<td><strong>Dynamic multi-table sink</strong></td>
-<td>no first-class API (N streams or route in
-<code>foreachBatch</code>)</td>
-<td><code>DynamicIcebergSink</code> — routes, creates, evolves at
-runtime</td>
-</tr>
-<tr>
-<td><strong>In-stream schema evolution</strong></td>
-<td><code>mergeSchema</code> adds columns</td>
-<td>auto-evolve with <code>DynamicIcebergSink</code></td>
-</tr>
-<tr>
-<td><strong>Commit trigger</strong></td>
-<td>micro-batch boundary</td>
-<td>checkpoint completion</td>
-</tr>
-<tr>
-<td><strong>Exactly-once</strong></td>
-<td>yes (checkpoint offsets + atomic commit)</td>
-<td>yes (2-phase commit tied to checkpoints)</td>
-</tr>
-<tr>
-<td><strong>Backpressure</strong></td>
-<td>pull (<code>maxOffsetsPerTrigger</code>)</td>
-<td>continuous, credit-based</td>
-</tr>
-</tbody>
-</table>
-<p>The clearest capability gap is the <strong>dynamic sink</strong>:
-Flink&#39;s <code>DynamicIcebergSink</code> can fan one stream into an
-open-ended, self-creating, self-evolving set of tables. Spark has no
-first-class equivalent — you run one stream per known table or route
-imperatively inside <code>foreachBatch</code> and own idempotency
-yourself.</p>
-<hr />
 <h2 id="reproduce-it">Reproduce it</h2>
 <h3 id="local-laptop-10-minutes-free">Local (laptop, ~10 minutes,
 free)</h3>
@@ -572,15 +498,17 @@ scale, Flink is the safer default by a wide margin.</li>
 compute</strong> — which is why throwing cores at Spark doesn&#39;t help,
 and why write-parallelism (bucket count) and merge strategy (MoR ≫ CoW)
 are the levers that matter.</li>
-<li><strong>Flink also carries the richer connector</strong> — native
-upsert, deletion vectors, and a dynamic multi-table sink Spark has no
-equivalent for.</li>
 </ul>
 <p>None of this says Spark is a bad streaming engine. It says that
 <em>for this specific workload</em> — high-rate keyed ingestion into an
-Iceberg table — Flink&#39;s connector and commit model fit the shape of the
-problem better, and the gap widens exactly where real ingestion
-pipelines live: upserts.</p>
+Iceberg table — Flink&#39;s commit model fits the shape of the problem
+better, and the gap widens exactly where real ingestion pipelines live:
+upserts.</p>
+<p><em>(There&#39;s a whole other axis to this — what each engine&#39;s Iceberg
+connector can actually <strong>do</strong>: dynamic multi-table sinks,
+in-stream schema evolution, equality vs positional deletes. That&#39;s a
+feature comparison rather than a performance one, so it&#39;s a post of its
+own — coming next.)</em></p>
 <p><em>All numbers regenerated from the repo. Found a way to make Spark
 keep up on upsert? Open an issue — the harness is built to be argued
 with.</em></p>

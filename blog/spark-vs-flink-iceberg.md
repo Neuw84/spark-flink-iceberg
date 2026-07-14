@@ -228,30 +228,6 @@ same story on a laptop and on a six-node cluster. That's the point of running bo
 
 ---
 
-## The connector feature comparison
-
-Speed aside, the connectors differ in what they can *do*. Versions: Spark 4.1.2 +
-iceberg-spark-runtime 1.11.0, Flink 2.2.0 + iceberg-flink-runtime 1.11.0.
-
-| Capability | Spark (Structured Streaming) | Flink (DataStream / SQL) |
-|---|---|---|
-| **Write distribution** | `none`/`hash`/`range` via table prop; `fanout-enabled` | same, plus `.distributionMode()` on the sink builder |
-| **Streaming append** | `writeStream.format("iceberg").toTable()` | `IcebergSink` (SinkV2) / `INSERT INTO` |
-| **Upsert / CDC** | `MERGE INTO` in `foreachBatch` (CoW or MoR) | native `.upsert(true)` + `equalityFieldColumns` |
-| **Deletes** | positional (CoW) or MoR | **equality deletes** + **deletion vectors** on v3 |
-| **Dynamic multi-table sink** | no first-class API (N streams or route in `foreachBatch`) | `DynamicIcebergSink` — routes, creates, evolves at runtime |
-| **In-stream schema evolution** | `mergeSchema` adds columns | auto-evolve with `DynamicIcebergSink` |
-| **Commit trigger** | micro-batch boundary | checkpoint completion |
-| **Exactly-once** | yes (checkpoint offsets + atomic commit) | yes (2-phase commit tied to checkpoints) |
-| **Backpressure** | pull (`maxOffsetsPerTrigger`) | continuous, credit-based |
-
-The clearest capability gap is the **dynamic sink**: Flink's `DynamicIcebergSink`
-can fan one stream into an open-ended, self-creating, self-evolving set of tables.
-Spark has no first-class equivalent — you run one stream per known table or route
-imperatively inside `foreachBatch` and own idempotency yourself.
-
----
-
 ## Reproduce it
 
 ### Local (laptop, ~10 minutes, free)
@@ -327,13 +303,16 @@ For **streaming ingestion into Iceberg**, at a fixed and equal resource budget:
 - **The bottleneck is the Iceberg write/commit path, not engine compute** — which is
   why throwing cores at Spark doesn't help, and why write-parallelism (bucket count)
   and merge strategy (MoR ≫ CoW) are the levers that matter.
-- **Flink also carries the richer connector** — native upsert, deletion vectors, and
-  a dynamic multi-table sink Spark has no equivalent for.
 
 None of this says Spark is a bad streaming engine. It says that *for this specific
-workload* — high-rate keyed ingestion into an Iceberg table — Flink's connector and
-commit model fit the shape of the problem better, and the gap widens exactly where
-real ingestion pipelines live: upserts.
+workload* — high-rate keyed ingestion into an Iceberg table — Flink's commit model
+fits the shape of the problem better, and the gap widens exactly where real
+ingestion pipelines live: upserts.
+
+*(There's a whole other axis to this — what each engine's Iceberg connector can
+actually **do**: dynamic multi-table sinks, in-stream schema evolution, equality vs
+positional deletes. That's a feature comparison rather than a performance one, so
+it's a post of its own — coming next.)*
 
 *All numbers regenerated from the repo. Found a way to make Spark keep up on upsert?
 Open an issue — the harness is built to be argued with.*
