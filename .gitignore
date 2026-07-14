@@ -20,6 +20,7 @@ docs/charts/*
 !docs/charts/file_size.png
 !docs/charts/batch_breakdown.png
 !docs/charts/local_vs_eks.png
+!docs/charts/summary_card.png
 
 # ── Build artifacts ──────────────────────────────────────────
 **/target/

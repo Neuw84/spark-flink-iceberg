@@ -1,4 +1,4 @@
-# Spark vs Flink for streaming into Apache Iceberg: which one keeps up, and what it costs
+# Streaming Data Lake: Spark vs Flink into Apache Iceberg
 
 *A reproducible, open-source benchmark of Apache Spark 4.1 and Apache Flink 2.2
 streaming a 100,000-records/second stream into Apache Iceberg — first on a laptop
@@ -138,9 +138,9 @@ But "keeping up" isn't free, and the price differs:
 
 ![Worker memory over 30 minutes](../docs/charts/memory.png)
 
-Flink holds a flat **~17 GB**. Spark append runs at **~20 GB** and drives fewer
-cores harder — it does the same work with a heavier memory footprint. That gap
-becomes the whole story the moment we turn on upserts.
+Flink holds a flat **~17 GB**. Spark append runs at **~20 GB** — it does the same
+work with a heavier memory footprint. That gap becomes the whole story the moment
+we turn on upserts.
 
 ---
 
@@ -166,20 +166,19 @@ Flink's upsert holds it; Spark's upsert modes fall off a cliff.
 
 ---
 
-## Result 3 — Why Spark can't push harder: it's the write path
+## Result 3 — Where the time goes: the write path
 
-Doubling Flink's cores from 7 to 14 did *not* raise its upsert throughput — the
-CPU sat half-idle either way. The ceiling isn't compute; it's the Iceberg
-**commit/write path**. Spark's own batch instrumentation shows exactly where the
-time goes:
+The bottleneck isn't the engine's record processing — it's the Iceberg
+**commit/write path**. Spark's own batch instrumentation shows exactly where each
+micro-batch spends its time:
 
 ![Where a Spark micro-batch spends its time](../docs/charts/batch_breakdown.png)
 
 **~97% of every micro-batch is `addBatch`** — the Iceberg write and flush. The
-commit path, not the engine's compute, is the wall. That's also why the lever that
-*actually* moves throughput is the number of concurrent write streams (Iceberg
-bucket count), not core count. And it's why copy-on-write, which multiplies the
-write work by rewriting whole files, is hopeless for streaming.
+commit path is the wall. That's why the lever that *actually* moves throughput is
+the number of concurrent write streams (Iceberg bucket count), and it's why
+copy-on-write — which multiplies the write work by rewriting whole files — is
+hopeless for streaming.
 
 The commit cadence tells the same story:
 
@@ -294,15 +293,13 @@ manifests and documented in `eks/PARITY.md`.
 For **streaming ingestion into Iceberg**, at a fixed and equal resource budget:
 
 - **Append is a near-tie on throughput** — both engines hold 100k rows/s — but Spark
-  costs more memory to do it (~20 GB vs Flink's ~17 GB) and drives cores less
-  efficiently.
+  costs more memory to do it (~20 GB vs Flink's ~17 GB).
 - **Upsert is where they part ways decisively.** Flink's deletion-vector upsert
   keeps up at nearly its append rate. Spark merge-on-read falls behind; Spark
   copy-on-write is unusable for high-rate streaming. If you're doing CDC or
   keyed-upsert into Iceberg at scale, Flink is the safer default by a wide margin.
-- **The bottleneck is the Iceberg write/commit path, not engine compute** — which is
-  why throwing cores at Spark doesn't help, and why write-parallelism (bucket count)
-  and merge strategy (MoR ≫ CoW) are the levers that matter.
+- **The bottleneck is the Iceberg write/commit path** — which is why write-parallelism
+  (bucket count) and merge strategy (MoR ≫ CoW) are the levers that matter.
 
 None of this says Spark is a bad streaming engine. It says that *for this specific
 workload* — high-rate keyed ingestion into an Iceberg table — Flink's commit model
