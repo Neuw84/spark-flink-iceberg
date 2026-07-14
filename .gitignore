@@ -49,3 +49,5 @@ __pycache__/
 .idea/
 .vscode/
 .DS_Store
+!docs/charts/table_setup.png
+!docs/charts/table_results.png

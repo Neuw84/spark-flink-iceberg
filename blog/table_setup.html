@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;padding:0}
+.wrap{width:1000px;background:#161E2D;padding:40px 44px;font-family:'Inter',sans-serif}
+.cap{color:#ff9900;font-weight:800;font-size:16px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:18px}
+table{border-collapse:collapse;width:100%;font-size:20px}
+th,td{padding:15px 18px;text-align:left;border-bottom:1px solid #2b384b;color:#e9edf3;vertical-align:top}
+th{color:#9aa7ba;font-weight:700;font-size:16px;letter-spacing:.04em;text-transform:uppercase;border-bottom:2px solid #3a4a61}
+th.local{color:#ff9900}th.eks{color:#4da6ff}
+td.k{color:#9aa7ba;font-weight:600;width:230px}
+tr:last-child td{border-bottom:none}
+b{color:#fff;font-weight:800}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:18px}
+</style></head><body>
+<div class="wrap">
+  <div class="cap">The setup · identical jobs, only the bindings change</div>
+  <table>
+    <tr><th></th><th class="local">Local (laptop)</th><th class="eks">EKS (cloud)</th></tr>
+    <tr><td class="k">Broker</td><td>Kafka (KRaft) in Docker</td><td>Strimzi Kafka (KRaft)</td></tr>
+    <tr><td class="k">Warehouse</td><td>MinIO</td><td>Amazon S3</td></tr>
+    <tr><td class="k">Catalog</td><td>Iceberg REST</td><td>AWS Glue Data Catalog</td></tr>
+    <tr><td class="k">Engines</td><td>Flink 2.2 DataStream (Java)<br>Spark 4.1 Structured Streaming (Scala)</td><td>same images</td></tr>
+    <tr><td class="k">Envelope <span style="font-weight:800;color:#e9edf3">per engine</span></td><td><b>7 cores / 14 GB</b></td><td><b>14 cores / 28 GB</b> (2×7c workers)</td></tr>
+    <tr><td class="k">Input rate</td><td>50,000 rows/s</td><td>100,000 rows/s</td></tr>
+    <tr><td class="k">Buckets / partitions / commit</td><td><span class="mono">24 / 12 / 60 s</span></td><td><span class="mono">24 / 12 / 60 s</span></td></tr>
+  </table>
+</div></body></html>

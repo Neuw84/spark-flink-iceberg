@@ -89,15 +89,7 @@ the intra-cycle climb) is wrong and will tell you a keeping-up engine is failing
 
 Identical jobs run in both environments; only the bindings change.
 
-| | Local (laptop) | EKS (cloud) |
-|---|---|---|
-| Broker | Kafka (KRaft) in Docker | Strimzi Kafka (KRaft) |
-| Warehouse | MinIO | Amazon S3 |
-| Catalog | Iceberg REST | AWS Glue Data Catalog |
-| Engines | Flink 2.2 DataStream (Java), Spark 4.1 Structured Streaming (Scala) | same images |
-| Envelope **per engine** | 7 cores / 14 GB | 14 cores / 28 GB (2×7c workers) |
-| Input rate | 50,000 rows/s | 100,000 rows/s |
-| Buckets / partitions / commit | 24 / 12 / 60 s | 24 / 12 / 60 s |
+![Setup: identical jobs, only the bindings change](../docs/charts/table_setup.png)
 
 The envelope and rate scale ~2:1 between local and cloud; **the ratios, bucketing,
 and commit interval are identical**, which is what lets the two environments
@@ -213,13 +205,7 @@ half the cores reproduces every verdict and the ~2:1 throughput ratio:
 
 ![Local mirrors EKS](../docs/charts/local_vs_eks.png)
 
-| Cell | Local (7c, 50k) | EKS (14c, 100k) | Verdict (both) |
-|---|---|---|---|
-| Flink append | 43.6k/s | 98.8k/s | **keeps up** |
-| Spark append | 43.4k/s | 99.5k/s | **keeps up** |
-| Flink upsert (DV) | 48.2k/s | 97.8k/s | **keeps up** |
-| Spark upsert (MoR) | 20.4k/s | 37.4k/s | **falls behind** |
-| Spark upsert (CoW) | 11.3k/s | 2.7k/s | **falls behind** |
+![Local mirrors the cloud: committed rows/sec at both scales](../docs/charts/table_results.png)
 
 The comparison is scale-invariant: the same code, tuned the same way, tells the
 same story on a laptop and on a six-node cluster. That's the point of running both

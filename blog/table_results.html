@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;padding:0}
+.wrap{width:1000px;background:#161E2D;padding:40px 44px;font-family:'Inter',sans-serif}
+.cap{color:#ff9900;font-weight:800;font-size:16px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:18px}
+table{border-collapse:collapse;width:100%;font-size:20px}
+th,td{padding:14px 18px;text-align:left;border-bottom:1px solid #2b384b;color:#e9edf3}
+th{color:#9aa7ba;font-weight:700;font-size:15px;letter-spacing:.04em;text-transform:uppercase;border-bottom:2px solid #3a4a61}
+td.k{font-weight:700;width:260px}
+td.num{font-family:ui-monospace,Menlo,monospace}
+tr:last-child td{border-bottom:none}
+.keep{color:#4da6ff;font-weight:800}
+.behind{color:#ff9900;font-weight:800}
+.f{color:#4da6ff}.s{color:#ff9900}
+</style></head><body>
+<div class="wrap">
+  <div class="cap">Local mirrors the cloud · committed rows/sec</div>
+  <table>
+    <tr><th>Cell</th><th>Local · 7c / 50k</th><th>EKS · 14c / 100k</th><th>Verdict (both)</th></tr>
+    <tr><td class="k"><span class="f">Flink</span> append</td><td class="num">43.6k/s</td><td class="num">98.8k/s</td><td class="keep">KEEPS UP</td></tr>
+    <tr><td class="k"><span class="s">Spark</span> append</td><td class="num">43.4k/s</td><td class="num">99.5k/s</td><td class="keep">KEEPS UP</td></tr>
+    <tr><td class="k"><span class="f">Flink</span> upsert (DV)</td><td class="num">48.2k/s</td><td class="num">97.8k/s</td><td class="keep">KEEPS UP</td></tr>
+    <tr><td class="k"><span class="s">Spark</span> upsert (MoR)</td><td class="num">20.4k/s</td><td class="num">37.4k/s</td><td class="behind">FALLS BEHIND</td></tr>
+    <tr><td class="k"><span class="s">Spark</span> upsert (CoW)</td><td class="num">11.3k/s</td><td class="num">2.7k/s</td><td class="behind">FALLS BEHIND</td></tr>
+  </table>
+</div></body></html>
