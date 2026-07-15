@@ -99,12 +99,27 @@ public final class IcebergIngestJob {
         String startOffsets = p.get("starting-offsets", System.getenv().getOrDefault("STARTING_OFFSETS", "latest"));
         OffsetsInitializer initial = "earliest".equalsIgnoreCase(startOffsets)
                 ? OffsetsInitializer.earliest() : OffsetsInitializer.latest();
+        // Kafka consumer fetch tuning. THESE VALUES ARE MIRRORED VERBATIM ON THE
+        // SPARK JOB (kafka.* options) so the read path is at parity — neither engine
+        // gets a hidden fetch-size advantage. This is NOT redundant with any Flink
+        // default: KafkaSourceBuilder only overrides the deserializers,
+        // enable.auto.commit, auto.offset.reset and client.id; it leaves the whole
+        // fetch path on stock Kafka client defaults (fetch.min.bytes=1,
+        // max.partition.fetch.bytes=1MiB, fetch.max.bytes=50MiB,
+        // receive.buffer.bytes=64KiB, max.poll.records=500) — same as Spark. We raise
+        // them on both so bigger, fewer fetches feed the sink under sustained load.
         KafkaSource<String> source = KafkaSource.<String>builder()
                 .setBootstrapServers(bootstrap)
                 .setTopics(topic)
                 .setGroupId("flink-iceberg-bench")
                 .setStartingOffsets(initial)
                 .setValueOnlyDeserializer(new SimpleStringSchema())
+                .setProperty("fetch.min.bytes", env("KAFKA_FETCH_MIN_BYTES", "1048576"))          // 1 MiB: batch broker responses (default 1)
+                .setProperty("fetch.max.wait.ms", env("KAFKA_FETCH_MAX_WAIT_MS", "500"))          // cap the wait so min-bytes never adds latency under load
+                .setProperty("max.partition.fetch.bytes", env("KAFKA_MAX_PARTITION_FETCH_BYTES", "8388608"))  // 8 MiB/partition/fetch (default 1 MiB)
+                .setProperty("fetch.max.bytes", env("KAFKA_FETCH_MAX_BYTES", "67108864"))         // 64 MiB overall response cap (default 50 MiB)
+                .setProperty("receive.buffer.bytes", env("KAFKA_RECEIVE_BUFFER_BYTES", "2097152")) // 2 MiB socket buffer (default 64 KiB)
+                .setProperty("max.poll.records", env("KAFKA_MAX_POLL_RECORDS", "5000"))            // drain more per poll (default 500)
                 .build();
 
         DataStream<String> raw = env.fromSource(source, WatermarkStrategy.noWatermarks(), "kafka-source");
@@ -125,6 +140,11 @@ public final class IcebergIngestJob {
         builder.append();
 
         env.execute("flink-datastream-iceberg-ingest[" + mode + (upsert ? ",upsert" : "") + "]");
+    }
+
+    /** Env var with a default — used for the Kafka consumer fetch-tuning knobs. */
+    private static String env(String key, String def) {
+        return System.getenv().getOrDefault(key, def);
     }
 
     private static RowData parse(String json) throws Exception {
