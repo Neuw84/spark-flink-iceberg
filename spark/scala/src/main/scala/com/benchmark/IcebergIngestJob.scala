@@ -130,6 +130,13 @@ object IcebergIngestJob {
     // each micro-batch — matching Flink's uncapped continuous read for a fair
     // overload comparison. Set MAX_OFFSETS_PER_TRIGGER only to deliberately throttle.
     val maxOffsets = sys.env.getOrElse("MAX_OFFSETS_PER_TRIGGER", "")
+    // Kafka consumer fetch tuning — kafka.*-prefixed options are passed straight to
+    // the underlying consumer. THESE VALUES ARE MIRRORED VERBATIM FROM THE FLINK JOB
+    // (.setProperty(...)) so the read path is at parity: both engines otherwise run
+    // on identical stock Kafka client defaults (fetch.min.bytes=1,
+    // max.partition.fetch.bytes=1MiB, fetch.max.bytes=50MiB, receive.buffer.bytes=64KiB,
+    // max.poll.records=500), so this removes fetch size as a hidden variable.
+    val kEnv = (k: String, d: String) => sys.env.getOrElse(k, d)
     val rawReader = spark.readStream
       .format("kafka")
       .option("kafka.bootstrap.servers", bootstrap)
@@ -138,6 +145,12 @@ object IcebergIngestJob {
       // aggressive Kafka retention can purge offsets a stale checkpoint expects;
       // don't fail the query on that.
       .option("failOnDataLoss", "false")
+      .option("kafka.fetch.min.bytes", kEnv("KAFKA_FETCH_MIN_BYTES", "1048576"))                    // 1 MiB (default 1)
+      .option("kafka.fetch.max.wait.ms", kEnv("KAFKA_FETCH_MAX_WAIT_MS", "500"))                    // cap the min-bytes wait
+      .option("kafka.max.partition.fetch.bytes", kEnv("KAFKA_MAX_PARTITION_FETCH_BYTES", "8388608")) // 8 MiB/partition/fetch (default 1 MiB)
+      .option("kafka.fetch.max.bytes", kEnv("KAFKA_FETCH_MAX_BYTES", "67108864"))                   // 64 MiB overall response cap (default 50 MiB)
+      .option("kafka.receive.buffer.bytes", kEnv("KAFKA_RECEIVE_BUFFER_BYTES", "2097152"))          // 2 MiB socket buffer (default 64 KiB)
+      .option("kafka.max.poll.records", kEnv("KAFKA_MAX_POLL_RECORDS", "5000"))                     // drain more per poll (default 500)
     val raw = (if (maxOffsets.nonEmpty) rawReader.option("maxOffsetsPerTrigger", maxOffsets) else rawReader)
       .load()
 
